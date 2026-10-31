@@ -3,7 +3,7 @@
 user_id=$(id -u)
 logs_folder="/var/log/roboshop"
 logs_file="${logs_folder}/${0}.log"
-domain_name="daws92s.store"
+domain_name="saikiranaws.store"
 scripts_dir=$(dirname "$(realpath "$0")")
 R="\e[31m"
 G="\e[32m"
@@ -51,7 +51,7 @@ validate $? "Removing old code"
 mkdir -p /app
 validate $? "Creating app directory"
 
-curl -L -o /tmp/cart.zip https://raw.githubusercontent.com/daws-92s/roboshop-documentation/refs/heads/main/artifacts/cart-v4.zip &>> $logs_file
+curl -L -o /tmp/cart.zip https://raw.githubusercontent.com/saikiranaws/roboshop-documentation/refs/heads/main/artifacts/cart-v4.zip &>> $logs_file
 validate $? "Downloading cart"
 
 cd /app

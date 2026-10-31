@@ -3,7 +3,7 @@
 user_id=$(id -u)
 logs_folder="/var/log/roboshop"
 logs_file="${logs_folder}/${0}.log"
-domain_name="daws92s.store"
+domain_name="saikiranaws.store"
 scripts_dir=$(dirname "$(realpath "$0")")
 R="\e[31m"
 G="\e[32m"
@@ -44,7 +44,7 @@ validate $? "Enable and start nginx"
 rm -rf /usr/share/nginx/html/* &>>$logs_file
 validate $? "Removing default nginx content"
 
-curl -L -o /tmp/frontend.zip https://raw.githubusercontent.com/daws-92s/roboshop-documentation/refs/heads/main/artifacts/frontend-v4.zip &>>$logs_file
+curl -L -o /tmp/frontend.zip https://raw.githubusercontent.com/saikiranaws/roboshop-documentation/refs/heads/main/artifacts/frontend-v4.zip &>>$logs_file
 cd /usr/share/nginx/html &>> $logs_file
 unzip /tmp/frontend.zip &>> $logs_file
 validate $? "Downloading and unzipping frontend code"
