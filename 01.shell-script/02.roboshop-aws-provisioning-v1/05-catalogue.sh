@@ -51,7 +51,7 @@ validate $? "Removing old code"
 mkdir -p /app
 validate $? "Creating app directory"
 
-curl -L -o /tmp/catalogue.zip https://raw.githubusercontent.com/daws-92s/roboshop-documentation/refs/heads/main/artifacts/catalogue-v4.zip &>> $logs_file
+curl -L -o /tmp/catalogue.zip https://raw.githubusercontent.com/Saikiran-Panuganti/devops-real-world-projects/main/01.shell-script/01.roboshop-documentation/artifacts/catalogue-v4.zip &>> $logs_file
 validate $? "Downloading catalogue"
 
 cd /app
