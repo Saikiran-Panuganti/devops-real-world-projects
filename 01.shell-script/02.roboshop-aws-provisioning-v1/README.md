@@ -101,6 +101,49 @@ Confirm that the account and identity are the ones you intend to use. This
 check does not verify that the identity has all permissions required to
 provision the project.
 
+### 5. Register a domain and create a Route 53 hosted zone
+
+You need a domain name that you own. Register one through a domain registrar
+such as GoDaddy or Hostinger. The image below shows an example of a domain
+registration page; the interface may differ over time.
+
+![Example Hostinger domain registration page](../../../Images/hostinger-domain_name.png)
+
+In the AWS Console, open **Route 53 → Hosted zones → Create hosted zone**.
+Enter your domain name (for example, `example.com`) and create a **Public hosted
+zone**. Copy the hosted zone ID; you will use it in the script. The following
+image shows an example hosted-zone listing:
+
+![Example Route 53 hosted zone](../../../Images/Route%2053-%20Hosted%20Zone.png)
+
+To make the hosted zone authoritative for your domain, update the domain's
+nameservers at your registrar to the four NS values Route 53 assigned to the
+hosted zone. Creating a hosted zone alone does not change the registrar's
+nameserver delegation. DNS delegation can take time to propagate.
+
+### 6. Set the domain in the project scripts
+
+Set your domain name in each of the following scripts before using them:
+
+- In `roboshop-v1.sh`, set the AMI, instance type, domain, and hosted-zone ID:
+
+```bash
+ami_id="<AMI-ID>"
+instance_type="t3.micro"
+domain_name="example.com"
+hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>"
+```
+
+- In `08-shipping.sh` and `10-frontend.sh`, replace the placeholder
+  `domain_name` value with the same domain:
+
+  ```bash
+  domain_name="example.com"
+  ```
+
+
+
+
 
 ## Project contents
 
