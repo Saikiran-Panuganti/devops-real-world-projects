@@ -95,14 +95,14 @@ You need a domain name that you own. Register one through a domain registrar
 such as GoDaddy or Hostinger. The image below shows an example of a domain
 registration page; the interface may differ over time.
 
-![Example Hostinger domain registration page](https://github.com/Saikiran-Panuganti/Images/blob/main/hostinger-domain_name.png)
+![Example Hostinger domain registration page](https://github.com/Saikiran-Panuganti/Images/blob/main/Roboshop/hostinger-domain_name.png)
 
 In the AWS Console, open **Route 53 → Hosted zones → Create hosted zone**.
 Enter your domain name (for example, `example.com`) and create a **Public hosted
 zone**. Copy the hosted zone ID; you will use it in the script. The following
 image shows an example hosted-zone listing:
 
-![Example Route 53 hosted zone](https://github.com/Saikiran-Panuganti/Images/blob/main/Route%2053-%20Hosted%20Zone.png)
+![Example Route 53 hosted zone](https://github.com/Saikiran-Panuganti/Images/blob/main/Roboshop/Route%2053-%20Hosted%20Zone.png)
 
 To make the hosted zone authoritative for your domain, update the domain's
 nameservers at your registrar to the four NS values Route 53 assigned to the
@@ -581,12 +581,37 @@ Check the log to confirm the service configured successfully or to find any erro
 sudo tail -f /var/log/roboshop/10-frontend.sh.log
 ```
 
-The component setup scripts use Bash syntax, so run them with `bash` as shown
-above. `tail -f` follows new log entries; press `Ctrl+C` to stop following.
-Check the corresponding component documentation for service health checks
-before moving to the next service. This V1 repository does not include a
-Dispatch setup script; the RabbitMQ rule for `roboshop-dispatch` is only needed
-if you deploy Dispatch separately.
+After Frontend configuration completes, open
+`http://<FRONTEND-PUBLIC-IP>` in a browser and confirm the RoboShop application
+page loads.
+
+#### 11) Point the root domain to Frontend (optional)
+
+The script creates `frontend.<your-domain>`. To open the site using the root
+domain, such as `saikiranaws.store`, create a separate Route 53 record:
+
+1. In AWS Console, go to **Route 53 → Hosted zones** and open your domain's
+   public hosted zone.
+2. Choose **Create record**.
+3. Leave **Record name** blank to use the root domain.
+4. Set **Record type** to `A`.
+5. For **Value**, enter the current public IPv4 address of the Frontend
+   instance. Do not use an old example IP; the instance's public IP may change
+   if it is stopped and started.
+6. Set **TTL (seconds)** to `1` (or use the value required by your setup).
+7. Choose **Create records**.
+
+After DNS updates, open `http://<your-domain>` in a browser to test the root
+domain. For example, visit `http://saikiranaws.store`. The RoboShop dashboard
+should appear:
+
+![RoboShop application dashboard accessed using the domain name](https://github.com/Saikiran-Panuganti/Images/blob/main/Roboshop/Access-Domain-Name.png)
+
+See the [RoboShop application screenshots](https://github.com/Saikiran-Panuganti/Images/tree/main/Roboshop)
+for examples of the other application pages and service names.
+
+
+
 
 See the [RoboShop documentation](../01.roboshop-documentation/readme.md) for
 the full architecture, dependencies, health checks, and security-group
