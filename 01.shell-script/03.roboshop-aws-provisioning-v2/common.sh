@@ -91,7 +91,7 @@ app_setup(){
     mkdir -p /app
     validate $? "Creating app directory"
 
-    curl -L -o "/tmp/$app_name.zip" "https://raw.githubusercontent.com/daws-92s/roboshop-documentation/refs/heads/main/artifacts/$app_name-v4.zip" &>> $logs_file
+    curl -L -o "/tmp/$app_name.zip" "https://raw.githubusercontent.com/Saikiran-Panuganti/devops-real-world-projects/main/01.shell-script/01.roboshop-documentation/artifacts/$app_name-v4.zip" &>> $logs_file
     validate $? "Downloading $app_name"
 
     cd /app
