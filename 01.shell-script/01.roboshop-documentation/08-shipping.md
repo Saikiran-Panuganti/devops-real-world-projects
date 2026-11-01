@@ -164,6 +164,7 @@ curl http://localhost:8080/codes
 | Log shows `Access denied for user 'shipping'` | `app-user.sql` was not loaded |
 | Log shows `Communications link failure` | Shipping cannot reach MySQL: check the IP and port 3306 in the security group |
 | Log shows `Cannot find any provider supporting RSA/ECB/OAEPWithSHA-1AndMGF1Padding` | Old `shipping-v4.zip` that connects to MySQL without TLS. Download the zip again and rebuild |
+| `Could not generate keypair for algorithm: X25519MLKEM768` | Server is in FIPS mode and an old artifact is in use. Download the latest `shipping-v4.zip`; it sets `jdk.tls.namedGroups` in `.mvn/jvm.config` (build) and in `main()` (runtime) |
 | `503` from `/codes` | MySQL went down while shipping was running |
 | `502` from `/confirm/...` | Shipping cannot reach Cart |
 
