@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ami_id="ami-0055977a6e828a4f4"
+ami_id="ami-0eec78ea4cbaaf5bd"
 instance_type="t3.micro"
 domain_name="saikiranaws.store"
 hosted_zone_id="Z05137096J70EBGPV01Y"
@@ -12,7 +12,7 @@ do
     instance_id=$(aws ec2 run-instances \
             --image-id $ami_id \
             --instance-type $instance_type \
-           --security-group-ids sg-083094e0e4b4f3b04 \
+            --security-groups "roboshop-common" "roboshop-$instance" \
             --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=roboshop-$instance}]" \
             --query 'Instances[0].InstanceId' \
             --output text
