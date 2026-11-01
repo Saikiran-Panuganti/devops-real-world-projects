@@ -107,14 +107,14 @@ You need a domain name that you own. Register one through a domain registrar
 such as GoDaddy or Hostinger. The image below shows an example of a domain
 registration page; the interface may differ over time.
 
-![Example Hostinger domain registration page](../../../Images/hostinger-domain_name.png)
+![Example Hostinger domain registration page](https://github.com/Saikiran-Panuganti/Images/blob/main/hostinger-domain_name.png)
 
 In the AWS Console, open **Route 53 → Hosted zones → Create hosted zone**.
 Enter your domain name (for example, `example.com`) and create a **Public hosted
 zone**. Copy the hosted zone ID; you will use it in the script. The following
 image shows an example hosted-zone listing:
 
-![Example Route 53 hosted zone](../../../Images/Route%2053-%20Hosted%20Zone.png)
+![Example Route 53 hosted zone](https://github.com/Saikiran-Panuganti/Images/blob/main/Route%2053-%20Hosted%20Zone.png)
 
 To make the hosted zone authoritative for your domain, update the domain's
 nameservers at your registrar to the four NS values Route 53 assigned to the
