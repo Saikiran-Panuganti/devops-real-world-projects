@@ -15,63 +15,92 @@ instance, obtain the scripts, and run the matching component script yourself.
 After running it, verify the service's health using the checks in the RoboShop
 documentation.
 
-## Deployment flow
+## Getting started: configure AWS CLI on Windows
 
-1. Review the architecture, dependencies, setup order, ports, and component
-   requirements in the [RoboShop documentation](../01.roboshop-documentation/readme.md).
-   See, for example, the [MongoDB setup guide](../01.roboshop-documentation/01-mongodb.md).
-2. Configure and run `roboshop-v1.sh` with a component name, such as:
+Before provisioning RoboShop instances, configure the AWS CLI on your Windows
+computer. The commands below work in Git Bash after AWS CLI v2 is installed.
 
-   ```bash
-   sh roboshop-v1.sh mongodb
-   ```
+### 1. Install AWS CLI
 
-   The script uses the component name to name the instance and its DNS record.
-   Run it once for each component instance you need.
-3. Connect to the new instance, clone or otherwise obtain this project on that
-   server, and run the corresponding component script with the required
-   privileges. For example, run `01-mongodb.sh` on the MongoDB instance.
-4. Follow the component documentation to verify that the service is healthy
-   before continuing with dependent services.
+Download and install the **AWS CLI v2 for Windows (64-bit)** using the
+[official AWS installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+Close and reopen Git Bash after installation, then verify it is available:
 
-## AWS resources and configuration
+```bash
+aws --version
+```
 
-The provisioning script needs the AMI ID, instance type, security group IDs,
-domain name, and Route 53 hosted-zone ID. Configure these for your AWS account,
-region, VPC, and domain before running the script. An EC2 key pair is required
-if you plan to connect to instances using SSH; launching without a key pair
-means you cannot use SSH key-based login.
+### 2. Create credentials for the lab
 
-Attach both the shared `roboshop-common` security group and the
-component-specific group (for example, `roboshop-mongodb`) to each instance.
-The common group should allow SSH (port 22) only from your public IP. The
-component-specific group should allow the application traffic required by that
-service, preferably only from the appropriate sources. Ensure both groups
-belong to the VPC where the instance is launched.
+In the AWS Management Console, create an IAM identity for CLI access and
+generate an access key intended for **Command Line Interface (CLI)** use. For
+a basic learning setup:
 
-After an instance is created, the script uses its private IP for backend
-services and its public IP for Frontend, then creates or updates the matching
-Route 53 A record. Backend names should resolve to private addresses (for
-example, `mongodb.saikiranaws.store`); the Frontend domain (for example,
-`saikiranaws.store`) should resolve to the public address. The configured
-domain and hosted zone must match the records you intend to create.
+1. Open **IAM → Users → Create user** and create a dedicated user for this lab.
+2. Grant the user the permissions described below. Do not use root-account
+   access keys.
+3. Open the user's **Security credentials** tab, choose **Create access key**,
+   select the CLI use case, and follow the prompts to create the key.
 
-**Implementation note:** In the current `roboshop-v1.sh`, the launch command
-passes only the `roboshop-common` security group ID, and a single
-`domain_name` is used to form both backend and Frontend records. To match the
-design above, update the launch command to pass the component-specific
-security group ID as well, and configure the backend and Frontend DNS names
-appropriately if they use different domains.
+For a disposable learning account, the project may require permissions for
+EC2, security groups, and Route 53. Attaching the AWS managed
+`AdministratorAccess` policy grants broad access to the account; use it only
+if you understand and accept that risk, preferably in a separate lab account.
+For ongoing or production use, create a policy limited to the specific actions
+and resources the project needs. AWS recommends temporary credentials and
+least-privilege permissions where possible.
 
-## What `roboshop.conf` does
+Copy the access key ID and secret access key when AWS displays them. The secret
+is shown only once. Never paste either key into a script, README, source
+control, screenshot, or chat. If a key is exposed, deactivate and replace it
+immediately.
 
-`roboshop.conf` is an Nginx configuration file used by the Frontend setup
-script. It routes `/api/...` requests to the appropriate backend services using
-their DNS names, serves the Frontend application, and configures shared HTTP
-headers, compression, caching, health status, and gateway-error responses.
-The setup script replaces `DOMAIN_NAME` with the configured domain before
-installing the file in Nginx. This lets Nginx find backend services through
-their DNS records instead of hard-coding their IP addresses.
+### 3. Configure the AWS CLI
+
+In Git Bash, run:
+
+```bash
+aws configure
+```
+
+Enter the values when prompted:
+
+```text
+AWS Access Key ID: <your access key ID>
+AWS Secret Access Key: <your secret access key>
+Default region name: us-east-1
+Default output format: json
+```
+
+Use the AWS region where your AMI, security groups, and EC2 instances should
+exist. The Route 53 hosted zone is a global service, but its ID must still be
+the one for your domain. The CLI stores credentials under your Windows user
+profile (typically `~/.aws/credentials` and `~/.aws/config`); do not add these
+files to the repository.
+
+### 4. Verify the configured identity
+
+Run:
+
+```bash
+aws sts get-caller-identity
+```
+
+The command should return the AWS account and identity associated with the
+configured credentials, for example:
+
+```json
+{
+  "UserId": "AIDAXXXXXXXXXXXXX",
+  "Account": "123456789012",
+  "Arn": "arn:aws:iam::123456789012:user/devops-user"
+}
+```
+
+Confirm that the account and identity are the ones you intend to use. This
+check does not verify that the identity has all permissions required to
+provision the project.
+
 
 ## Project contents
 
