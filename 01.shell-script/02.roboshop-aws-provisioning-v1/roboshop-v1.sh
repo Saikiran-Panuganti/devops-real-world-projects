@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ami_id="ami-0eec78ea4cbaaf5bd"
+ami_id="ami-0055977a6e828a4f4"
 instance_type="t3.micro"
 domain_name="saikiranaws.store"
 hosted_zone_id="Z05137096J70EBGPV01Y"
