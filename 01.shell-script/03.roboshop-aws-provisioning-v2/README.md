@@ -118,135 +118,473 @@ Use the same domain in `roboshop-v1.sh` and `common.sh`. The current
 any service setup script. The V2 `08-shipping.sh` and `10-frontend.sh` scripts
 use the shared `domain_name` from `common.sh`.
 
-## 4. Create service security groups
+## 4. Create service security groups and deploy the instances
 
-Create one security group per service in **EC2 → Security Groups**. Create
-each group in the same region and VPC as the instances. For rules whose source
-is another service group, select that security group as the source in the
-AWS Console.
+For each service:
 
-Allow SSH from `0.0.0.0/0` only for a temporary lab; it lets any IPv4 address
-attempt to connect. Restrict SSH to your IP when possible. Do not expose
-database or backend application ports to the public internet.
+1. Create its security group in the EC2 console using the rules below. Use the
+   same region and VPC as the instance.
+2. From Windows Git Bash, run `sh roboshop-v1.sh <service-id>`.
+3. In **EC2 → Instances**, confirm `roboshop-<service-id>` reaches **Running**.
+4. In **Route 53 → Hosted zones → your domain → Records**, confirm the
+   `<service-id>.<your-domain>` A record exists.
+5. SSH as `ec2-user`, clone the repository, run the matching V2 setup script,
+   and check its log.
 
-| Security group | Port | Protocol | Inbound source | Purpose |
-|---|---:|---|---|---|
-| `roboshop-mongodb` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-mongodb` | 27017 | TCP | `roboshop-catalogue` | Catalogue reads products and loads data |
-| `roboshop-mongodb` | 27017 | TCP | `roboshop-user` | User account and order data |
-| `roboshop-redis` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-redis` | 6379 | TCP | `roboshop-user` | User guest ID counter |
-| `roboshop-redis` | 6379 | TCP | `roboshop-cart` | Cart storage |
-| `roboshop-mysql` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-mysql` | 3306 | TCP | `roboshop-shipping` | Shipping database access |
-| `roboshop-rabbitmq` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-payment` | Payment publishes orders |
-| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-dispatch` | Dispatch consumes orders, if deployed separately |
-| `roboshop-rabbitmq` | 15672 | TCP | `MY-IP/32` | Optional management UI |
-| `roboshop-catalogue` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-catalogue` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-catalogue` | 8080 | TCP | `roboshop-cart` | Cart checks product details |
-| `roboshop-user` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-user` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-user` | 8080 | TCP | `roboshop-payment` | Payment checks users and saves orders |
-| `roboshop-cart` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-cart` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-cart` | 8080 | TCP | `roboshop-shipping` | Shipping adds cost to the cart |
-| `roboshop-cart` | 8080 | TCP | `roboshop-payment` | Payment empties the cart |
-| `roboshop-shipping` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-shipping` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-payment` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-payment` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-frontend` | 22 | TCP | `0.0.0.0/0` | SSH (temporary lab use) |
-| `roboshop-frontend` | 80 | TCP | `0.0.0.0/0` | Public website HTTP |
+The practice AMI (`ami-0055977a6e828a4f4`) uses username `ec2-user` and
+password `DevOps321`. This shared password is for a learning lab only. SSH
+from `0.0.0.0/0` exposes port 22 publicly; restrict it to your IP when possible.
+Do not expose database or backend application ports to the public internet.
+Select referenced service security groups as rule sources in the AWS Console.
 
-Create all service groups before adding rules that reference other service
-groups. The V2 project does not include a Dispatch setup script.
+#### 1) `roboshop-mongodb`
 
-`roboshop-v1.sh` currently passes the security-group name. If your VPC requires
-security-group IDs, update the launch command to use `--security-group-ids`
-with the ID of `roboshop-<service-id>`.
+Create `roboshop-mongodb` with these inbound rules:
 
-## 5. Provision, configure, and check each service
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 27017 | TCP | `roboshop-catalogue` | Catalogue reads products and loads master data |
+| 27017 | TCP | `roboshop-user` | User reads/writes user accounts and orders |
 
-The instance name and DNS record use the service ID passed to
-`roboshop-v1.sh`. Backend records use private IP addresses; Frontend uses its
-public IP.
+Create the instance from Windows Git Bash:
 
-| Order | Security group | Git Bash command | EC2 instance name | Route 53 record | Service setup script |
-|---:|---|---|---|---|---|
-| 1 | `roboshop-mongodb` | `sh roboshop-v1.sh mongodb` | `roboshop-mongodb` | `mongodb.<your-domain>` | `01-mongodb.sh` |
-| 2 | `roboshop-redis` | `sh roboshop-v1.sh redis` | `roboshop-redis` | `redis.<your-domain>` | `02-redis.sh` |
-| 3 | `roboshop-mysql` | `sh roboshop-v1.sh mysql` | `roboshop-mysql` | `mysql.<your-domain>` | `03-mysql.sh` |
-| 4 | `roboshop-rabbitmq` | `sh roboshop-v1.sh rabbitmq` | `roboshop-rabbitmq` | `rabbitmq.<your-domain>` | `04-rabbitmq.sh` |
-| 5 | `roboshop-catalogue` | `sh roboshop-v1.sh catalogue` | `roboshop-catalogue` | `catalogue.<your-domain>` | `05-catalogue.sh` |
-| 6 | `roboshop-user` | `sh roboshop-v1.sh user` | `roboshop-user` | `user.<your-domain>` | `06-user.sh` |
-| 7 | `roboshop-cart` | `sh roboshop-v1.sh cart` | `roboshop-cart` | `cart.<your-domain>` | `07-cart.sh` |
-| 8 | `roboshop-shipping` | `sh roboshop-v1.sh shipping` | `roboshop-shipping` | `shipping.<your-domain>` | `08-shipping.sh` |
-| 9 | `roboshop-payment` | `sh roboshop-v1.sh payment` | `roboshop-payment` | `payment.<your-domain>` | `09-payment.sh` |
-| 10 | `roboshop-frontend` | `sh roboshop-v1.sh frontend` | `roboshop-frontend` | `frontend.<your-domain>` | `10-frontend.sh` |
+```bash
+sh roboshop-v1.sh mongodb
+```
 
-For each service, follow these steps:
+Confirm EC2 shows `roboshop-mongodb` as **Running** and Route 53 has
+`mongodb.<your-domain>` (for example, `mongodb.saikiranaws.store`).
 
-1. Run its Git Bash command from the project directory.
-2. In **EC2 → Instances**, confirm the named instance reaches **Running**.
-3. In **Route 53 → Hosted zones → your domain → Records**, check that its A
-   record exists. For example, with `saikiranaws.store`, MongoDB should be
-   `mongodb.saikiranaws.store`.
-4. SSH to the instance using its public IPv4 address:
+Connect and log in:
 
-   ```bash
-   ssh ec2-user@<instance-public-ip>
-   ```
+```bash
+ssh ec2-user@<instance-public-ip>
+```
 
-   The practice AMI (`ami-0055977a6e828a4f4`) uses username `ec2-user` and
-   password `DevOps321`. This shared password is for a learning lab only; do
-   not use this AMI for sensitive workloads.
-5. On the instance, clone the repository and enter the V2 project directory:
+Username: `ec2-user`; password: `DevOps321`.
 
-   ```bash
-   cd /home/ec2-user
-   git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
-   cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
-   ```
+On the instance, clone the project and run the MongoDB setup script:
 
-6. Run the matching setup script with Bash and sudo. For example, on MongoDB:
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 01-mongodb.sh
+```
 
-   ```bash
-   sudo bash 01-mongodb.sh
-   ```
+Check the log for successful configuration or errors:
 
-7. Check the log to confirm successful configuration or find errors:
+```bash
+sudo tail -f /var/log/roboshop/01-mongodb.sh.log
+```
 
-   ```bash
-   sudo tail -f /var/log/roboshop/01-mongodb.sh.log
-   ```
+#### 2) `roboshop-redis`
 
-   Replace the script name with the service's setup script. Press `Ctrl+C` to
-   stop following the log. Run scripts in the order shown above and verify
-   service health using the [RoboShop documentation](../01.roboshop-documentation/readme.md)
-   before moving to dependent services.
+Create `roboshop-redis` with these inbound rules:
 
-> **Important:** `common.sh` uses shared variables and helper functions, so
-> keep it in the same project directory as the service scripts. The scripts
-> source it using a relative path. Run them from the project directory, on
-> fresh lab instances, and review them before use; they install software and
-> modify system configuration. Application scripts that call `app_setup`
-> remove and recreate `/app`.
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 6379 | TCP | `roboshop-user` | User guest ID counter |
+| 6379 | TCP | `roboshop-cart` | Stores the carts |
 
-### Frontend and domain access
+Create the instance:
 
-After running `10-frontend.sh`, open
-`http://<FRONTEND-PUBLIC-IP>` in a browser and confirm the application loads.
-The script creates `frontend.<your-domain>`. To use the root domain, create a
-Route 53 `A` record with a blank record name and the Frontend instance's
-current public IP. For a stable address, associate an Elastic IP with the
-instance.
+```bash
+sh roboshop-v1.sh redis
+```
+
+Confirm EC2 shows `roboshop-redis` as **Running** and Route 53 has
+`redis.<your-domain>` (for example, `redis.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Redis setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 02-redis.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/02-redis.sh.log
+```
+
+#### 3) `roboshop-mysql`
+
+Create `roboshop-mysql` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 3306 | TCP | `roboshop-shipping` | Shipping reads city/distance data |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh mysql
+```
+
+Confirm EC2 shows `roboshop-mysql` as **Running** and Route 53 has
+`mysql.<your-domain>` (for example, `mysql.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the MySQL setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 03-mysql.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/03-mysql.sh.log
+```
+
+#### 4) `roboshop-rabbitmq`
+
+Create `roboshop-rabbitmq` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 5672 | TCP | `roboshop-payment` | Payment publishes orders |
+| 5672 | TCP | `roboshop-dispatch` | Dispatch consumes orders, if deployed separately |
+| 15672 | TCP | `MY-IP/32` | Optional management UI |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh rabbitmq
+```
+
+Confirm EC2 shows `roboshop-rabbitmq` as **Running** and Route 53 has
+`rabbitmq.<your-domain>` (for example, `rabbitmq.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the RabbitMQ setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 04-rabbitmq.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/04-rabbitmq.sh.log
+```
+
+#### 5) `roboshop-catalogue`
+
+Create `roboshop-catalogue` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-cart` | Cart checks product price and stock |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh catalogue
+```
+
+Confirm EC2 shows `roboshop-catalogue` as **Running** and Route 53 has
+`catalogue.<your-domain>` (for example, `catalogue.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Catalogue setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 05-catalogue.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/05-catalogue.sh.log
+```
+
+#### 6) `roboshop-user`
+
+Create `roboshop-user` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-payment` | Payment checks users and saves orders |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh user
+```
+
+Confirm EC2 shows `roboshop-user` as **Running** and Route 53 has
+`user.<your-domain>` (for example, `user.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the User setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 06-user.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/06-user.sh.log
+```
+
+#### 7) `roboshop-cart`
+
+Create `roboshop-cart` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-shipping` | Shipping adds cost to the cart |
+| 8080 | TCP | `roboshop-payment` | Payment empties the cart |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh cart
+```
+
+Confirm EC2 shows `roboshop-cart` as **Running** and Route 53 has
+`cart.<your-domain>` (for example, `cart.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Cart setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 07-cart.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/07-cart.sh.log
+```
+
+#### 8) `roboshop-shipping`
+
+Create `roboshop-shipping` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh shipping
+```
+
+Confirm EC2 shows `roboshop-shipping` as **Running** and Route 53 has
+`shipping.<your-domain>` (for example, `shipping.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Shipping setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 08-shipping.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/08-shipping.sh.log
+```
+
+#### 9) `roboshop-payment`
+
+Create `roboshop-payment` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh payment
+```
+
+Confirm EC2 shows `roboshop-payment` as **Running** and Route 53 has
+`payment.<your-domain>` (for example, `payment.saikiranaws.store`).
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Payment setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 09-payment.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/09-payment.sh.log
+```
+
+#### 10) `roboshop-frontend`
+
+Create `roboshop-frontend` with these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access |
+| 80 | TCP | `0.0.0.0/0` | Public website HTTP |
+
+Create the instance:
+
+```bash
+sh roboshop-v1.sh frontend
+```
+
+Confirm EC2 shows `roboshop-frontend` as **Running** and Route 53 has
+`frontend.<your-domain>` (for example, `frontend.saikiranaws.store`). Frontend
+uses the public IP; backend records use private IPs.
+
+Connect and log in:
+
+```bash
+ssh ec2-user@<instance-public-ip>
+```
+
+Username: `ec2-user`; password: `DevOps321`.
+
+Clone the project and run the Frontend setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/03.roboshop-aws-provisioning-v2
+sudo bash 10-frontend.sh
+```
+
+Check the log for successful configuration or errors:
+
+```bash
+sudo tail -f /var/log/roboshop/10-frontend.sh.log
+```
+
+After Frontend configuration, open `http://<FRONTEND-PUBLIC-IP>` in a browser.
+To use the root domain, add a Route 53 `A` record with a blank record name and
+the Frontend instance's current public IP. Use an Elastic IP if you need a
+stable address.
 
 ![RoboShop application dashboard accessed using the domain name](https://github.com/Saikiran-Panuganti/Images/blob/main/Roboshop/Access-Domain-Name.png)
 
 See the [RoboShop application screenshots](https://github.com/Saikiran-Panuganti/Images/tree/main/Roboshop)
 for other application pages.
+
+The scripts source `common.sh` using a relative path, so run each setup script
+from the V2 project directory. Application scripts that call `app_setup`
+remove and recreate `/app`. The V2 project does not include a Dispatch setup
+script; configure the RabbitMQ Dispatch rule only if you deploy Dispatch
+separately. Refer to the [RoboShop documentation](../01.roboshop-documentation/readme.md)
+for service health checks and dependencies.
+
+### Optional: `roboshop-dispatch` security group
+
+If you deploy Dispatch separately, create `roboshop-dispatch` with this
+inbound rule:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `MY-IP/32` | SSH access |
+
+Dispatch consumes messages from RabbitMQ using an outbound connection, so it
+does not need inbound application ports. This V2 project does not include a
+Dispatch setup script.
 
 ## Project contents
 

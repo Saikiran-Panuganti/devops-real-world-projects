@@ -617,6 +617,18 @@ See the [RoboShop documentation](../01.roboshop-documentation/readme.md) for
 the full architecture, dependencies, health checks, and security-group
 guidance.
 
+### Optional: `roboshop-dispatch` security group
+
+If you deploy Dispatch separately, create `roboshop-dispatch` with this
+inbound rule:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `MY-IP/32` | SSH access |
+
+Dispatch consumes messages from RabbitMQ using an outbound connection, so it
+does not need inbound application ports. This V1 project does not include a
+Dispatch setup script.
 
 ## Project contents
 
