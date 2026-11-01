@@ -141,8 +141,127 @@ hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>"
   domain_name="example.com"
   ```
 
+### 7. Create the security groups in AWS
 
+Create the security groups manually in **EC2 → Security Groups → Create
+security group**. Do not create them from a component install script. Create
+them in the same AWS region and VPC where the instances will run. Create all
+the service groups first, then add rules that use another security group as
+the source; choose the source group itself, not its name as a CIDR value.
 
+Attach the shared `roboshop-common` group to every instance. Its only inbound
+rule should allow SSH (TCP 22) from your current public IP with a `/32` mask.
+The component group allows only the application traffic listed below. The
+reference documentation repeats the SSH rule in each service group; when using
+`roboshop-common` on every instance, the SSH rule in that shared group is
+sufficient, so you do not need to duplicate SSH in every component group.
+
+| Security group | Port | Protocol | Inbound source | Purpose |
+|---|---:|---|---|---|
+| `roboshop-common` | 22 | TCP | `MY-IP/32` | SSH administration; attach this group to every instance |
+| `roboshop-mongodb` | 27017 | TCP | `roboshop-catalogue` | Catalogue reads products and loads master data |
+| `roboshop-mongodb` | 27017 | TCP | `roboshop-user` | User reads and writes user accounts and orders |
+| `roboshop-redis` | 6379 | TCP | `roboshop-user` | User guest ID counter |
+| `roboshop-redis` | 6379 | TCP | `roboshop-cart` | Cart storage |
+| `roboshop-mysql` | 3306 | TCP | `roboshop-shipping` | Shipping reads city and distance data |
+| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-payment` | Payment publishes orders |
+| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-dispatch` | Dispatch consumes orders |
+| `roboshop-rabbitmq` | 15672 | TCP | `MY-IP/32` | Optional RabbitMQ management UI |
+| `roboshop-catalogue` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| `roboshop-catalogue` | 8080 | TCP | `roboshop-cart` | Cart checks product price and stock |
+| `roboshop-user` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| `roboshop-user` | 8080 | TCP | `roboshop-payment` | Payment checks users and saves orders |
+| `roboshop-cart` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| `roboshop-cart` | 8080 | TCP | `roboshop-shipping` | Shipping adds shipping cost to the cart |
+| `roboshop-cart` | 8080 | TCP | `roboshop-payment` | Payment empties the cart after an order |
+| `roboshop-shipping` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| `roboshop-payment` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| `roboshop-frontend` | 80 | TCP | `0.0.0.0/0` | Public HTTP access to the website |
+
+Do not open database or backend ports to `0.0.0.0/0`. Keep the security
+groups' default outbound access unless you have deliberately configured
+outbound rules for all required package downloads and service connections.
+
+### 8. Prepare `roboshop-v1.sh` for instance access
+
+Before provisioning, verify that the launch command attaches **both**
+`roboshop-common` and the component-specific group. The current script's
+`run-instances` command attaches only `roboshop-$instance`; update it to pass
+both group IDs with `--security-group-ids` (especially when using a non-default
+VPC). Also provide an EC2 key pair with `--key-name` if you will connect using
+SSH, and keep the matching private key securely on your Windows computer.
+Without a key pair or another configured access method such as Systems Manager
+Session Manager, SSH login will not be available.
+
+### 9. Provision and configure each component
+
+Run these steps from Git Bash in this project directory, in the documented
+setup order. The component security group must exist before you run the
+provisioning command.
+
+For each instance:
+
+1. Run `sh roboshop-v1.sh <service-id>` from Git Bash. For example,
+   `sh roboshop-v1.sh mongodb`.
+2. In the EC2 console, wait for the instance to be running and pass its status
+   checks. Use its **public IPv4 address** to connect over SSH; backend DNS
+   records still point to private IP addresses.
+3. Connect as `ec2-user` with the private key for the launch key pair. In
+   Git Bash, for example:
+
+   ```bash
+   ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+   ```
+
+4. On the instance, clone the repository and enter the project directory:
+
+   ```bash
+   cd /home/ec2-user
+   git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+   cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+   ```
+
+5. Run the matching configuration script with Bash and sudo. For example:
+
+   ```bash
+   sudo bash 01-mongodb.sh
+   ```
+
+   These scripts use Bash syntax; invoke them with `bash`, not `sh`.
+6. Check the service log for errors and verify the service health using its
+   documentation before provisioning the next dependent component:
+
+   ```bash
+   sudo tail -n 60 /var/log/roboshop/01-mongodb.sh.log
+   sudo tail -f /var/log/roboshop/01-mongodb.sh.log
+   ```
+
+   The first command shows recent output. The `-f` command follows new log
+   entries and can be stopped with `Ctrl+C`. Log filenames are based on the
+   component script name.
+
+Follow this sequence through Frontend:
+
+| Order | Instance argument | Security group | Run on the instance | Log file |
+|---:|---|---|---|---|
+| 1 | `mongodb` | `roboshop-mongodb` | `sudo bash 01-mongodb.sh` | `/var/log/roboshop/01-mongodb.sh.log` |
+| 2 | `redis` | `roboshop-redis` | `sudo bash 02-redis.sh` | `/var/log/roboshop/02-redis.sh.log` |
+| 3 | `mysql` | `roboshop-mysql` | `sudo bash 03-mysql.sh` | `/var/log/roboshop/03-mysql.sh.log` |
+| 4 | `rabbitmq` | `roboshop-rabbitmq` | `sudo bash 04-rabbitmq.sh` | `/var/log/roboshop/04-rabbitmq.sh.log` |
+| 5 | `catalogue` | `roboshop-catalogue` | `sudo bash 05-catalogue.sh` | `/var/log/roboshop/05-catalogue.sh.log` |
+| 6 | `user` | `roboshop-user` | `sudo bash 06-user.sh` | `/var/log/roboshop/06-user.sh.log` |
+| 7 | `cart` | `roboshop-cart` | `sudo bash 07-cart.sh` | `/var/log/roboshop/07-cart.sh.log` |
+| 8 | `shipping` | `roboshop-shipping` | `sudo bash 08-shipping.sh` | `/var/log/roboshop/08-shipping.sh.log` |
+| 9 | `payment` | `roboshop-payment` | `sudo bash 09-payment.sh` | `/var/log/roboshop/09-payment.sh.log` |
+| 10 | `frontend` | `roboshop-frontend` | `sudo bash 10-frontend.sh` | `/var/log/roboshop/10-frontend.sh.log` |
+
+The reference documentation also defines `roboshop-dispatch`, but this V1
+repository does not include a Dispatch setup script. Dispatch is therefore
+not part of the deployment sequence above; the RabbitMQ rule for
+`roboshop-dispatch` is needed only if you deploy that service separately.
+Follow the [RoboShop documentation](../01.roboshop-documentation/readme.md) for
+each service's dependencies, health checks, and detailed security-group
+guidance.
 
 
 ## Project contents
