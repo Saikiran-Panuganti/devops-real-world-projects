@@ -645,3 +645,8 @@ included in this V1 project.
 > change system configuration, and start services. Review the scripts before
 > running them, use an authorized AWS account, and test in an environment
 > where you are prepared for the resulting charges and changes.
+
+## Related repositories
+
+- [Shell scripting learning notes](https://github.com/Saikiran-Panuganti/devops-learning-notes/tree/main/01.shell-script)
+- [Shell scripting hands-on labs](https://github.com/Saikiran-Panuganti/devops-hands-on-labs/tree/main/01.shell-script)

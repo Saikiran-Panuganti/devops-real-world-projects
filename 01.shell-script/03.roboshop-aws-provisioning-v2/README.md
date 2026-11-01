@@ -596,3 +596,8 @@ Dispatch setup script.
 
 The reference documentation includes Dispatch, but a Dispatch setup script is
 not included in this V2 project.
+
+## Related repositories
+
+- [Shell scripting learning notes](https://github.com/Saikiran-Panuganti/devops-learning-notes/tree/main/01.shell-script)
+- [Shell scripting hands-on labs](https://github.com/Saikiran-Panuganti/devops-hands-on-labs/tree/main/01.shell-script)
