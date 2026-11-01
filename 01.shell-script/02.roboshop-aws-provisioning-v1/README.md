@@ -141,126 +141,451 @@ hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>"
   domain_name="example.com"
   ```
 
-### 7. Create the security groups in AWS
+### 7. Create service security groups and deploy the instances
 
-Create the security groups manually in **EC2 → Security Groups → Create
-security group**. Do not create them from a component install script. Create
-them in the same AWS region and VPC where the instances will run. Create all
-the service groups first, then add rules that use another security group as
-the source; choose the source group itself, not its name as a CIDR value.
+Create a separate security group for **each** service in **EC2 → Security
+Groups → Create security group**. This workflow does not use a shared
+`roboshop-common` group and does not create security groups through a script.
+Create the groups in the same region and VPC as the instances. Add the inbound
+rules shown under each service below. For an internal source, select the
+referenced security group as the rule's source; do not enter its name as a
+CIDR block.
 
-Attach the shared `roboshop-common` group to every instance. Its only inbound
-rule should allow SSH (TCP 22) from your current public IP with a `/32` mask.
-The component group allows only the application traffic listed below. The
-reference documentation repeats the SSH rule in each service group; when using
-`roboshop-common` on every instance, the SSH rule in that shared group is
-sufficient, so you do not need to duplicate SSH in every component group.
+Create all ten service security groups before adding rules that reference
+another service's group. This ensures that every source group can be selected
+when configuring the rules. The examples below allow SSH from `0.0.0.0/0`,
+meaning any IPv4 address on the internet can attempt to connect. This is less
+secure than restricting SSH to your current public IP with a `/32` rule. Use
+`0.0.0.0/0` only for a temporary lab and change it to your trusted IP when
+possible. Do not expose backend or database ports to `0.0.0.0/0`. Keep
+outbound rules that allow the instances to download packages and communicate
+with their dependencies.
 
-| Security group | Port | Protocol | Inbound source | Purpose |
-|---|---:|---|---|---|
-| `roboshop-common` | 22 | TCP | `MY-IP/32` | SSH administration; attach this group to every instance |
-| `roboshop-mongodb` | 27017 | TCP | `roboshop-catalogue` | Catalogue reads products and loads master data |
-| `roboshop-mongodb` | 27017 | TCP | `roboshop-user` | User reads and writes user accounts and orders |
-| `roboshop-redis` | 6379 | TCP | `roboshop-user` | User guest ID counter |
-| `roboshop-redis` | 6379 | TCP | `roboshop-cart` | Cart storage |
-| `roboshop-mysql` | 3306 | TCP | `roboshop-shipping` | Shipping reads city and distance data |
-| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-payment` | Payment publishes orders |
-| `roboshop-rabbitmq` | 5672 | TCP | `roboshop-dispatch` | Dispatch consumes orders |
-| `roboshop-rabbitmq` | 15672 | TCP | `MY-IP/32` | Optional RabbitMQ management UI |
-| `roboshop-catalogue` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-catalogue` | 8080 | TCP | `roboshop-cart` | Cart checks product price and stock |
-| `roboshop-user` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-user` | 8080 | TCP | `roboshop-payment` | Payment checks users and saves orders |
-| `roboshop-cart` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-cart` | 8080 | TCP | `roboshop-shipping` | Shipping adds shipping cost to the cart |
-| `roboshop-cart` | 8080 | TCP | `roboshop-payment` | Payment empties the cart after an order |
-| `roboshop-shipping` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-payment` | 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
-| `roboshop-frontend` | 80 | TCP | `0.0.0.0/0` | Public HTTP access to the website |
+For each service, follow its section in order:
 
-Do not open database or backend ports to `0.0.0.0/0`. Keep the security
-groups' default outbound access unless you have deliberately configured
-outbound rules for all required package downloads and service connections.
+1. Create/configure the service's security group and attach it to the instance
+   by running `sh roboshop-v1.sh <service-id>` in Git Bash.
+2. Wait for the instance to pass its EC2 status checks, then SSH as
+   `ec2-user` using the key pair supplied when launching it.
+3. Clone the project on that instance, run the matching configuration script,
+   and check its log.
 
-### 8. Prepare `roboshop-v1.sh` for instance access
+Replace `<your-windows-user>`, `<key-file>`, and `<instance-public-ip>` in the
+SSH command with your actual Windows username, key filename, and instance
+public IPv4 address. The private key remains on your Windows machine; never
+copy it into the repository or onto the instance.
 
-Before provisioning, verify that the launch command attaches **both**
-`roboshop-common` and the component-specific group. The current script's
-`run-instances` command attaches only `roboshop-$instance`; update it to pass
-both group IDs with `--security-group-ids` (especially when using a non-default
-VPC). Also provide an EC2 key pair with `--key-name` if you will connect using
-SSH, and keep the matching private key securely on your Windows computer.
-Without a key pair or another configured access method such as Systems Manager
-Session Manager, SSH login will not be available.
+Before running the service commands, update `roboshop-v1.sh` so it selects the
+manually created security group by name and VPC, attaches its ID, and specifies
+the EC2 key pair used by the SSH commands below. Add these settings with the
+other variables near the top:
 
-### 9. Provision and configure each component
+```bash
+vpc_id="<YOUR-VPC-ID>"
+key_name="<YOUR-EC2-KEY-PAIR-NAME>"
+```
 
-Run these steps from Git Bash in this project directory, in the documented
-setup order. The component security group must exist before you run the
-provisioning command.
+Then, inside the `for` loop and before `aws ec2 run-instances`, look up the
+service group's ID:
 
-For each instance:
+```bash
+security_group_id=$(aws ec2 describe-security-groups \
+    --filters "Name=group-name,Values=roboshop-$instance" "Name=vpc-id,Values=$vpc_id" \
+    --query 'SecurityGroups[0].GroupId' \
+    --output text)
+```
 
-1. Run `sh roboshop-v1.sh <service-id>` from Git Bash. For example,
-   `sh roboshop-v1.sh mongodb`.
-2. In the EC2 console, wait for the instance to be running and pass its status
-   checks. Use its **public IPv4 address** to connect over SSH; backend DNS
-   records still point to private IP addresses.
-3. Connect as `ec2-user` with the private key for the launch key pair. In
-   Git Bash, for example:
+In the `run-instances` command, use these options:
 
-   ```bash
-   ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
-   ```
+```bash
+--key-name "$key_name" \
+--security-group-ids "$security_group_id" \
+```
 
-4. On the instance, clone the repository and enter the project directory:
+This way, `sh roboshop-v1.sh mongodb` attaches the ID of
+`roboshop-mongodb`, while the other arguments select their corresponding
+service groups. The group must already exist in the configured region and VPC.
+The key pair must already exist in that AWS region, and its private key must
+be available on your Windows computer. Do not use `--security-groups` with a
+group name for a VPC launch.
 
-   ```bash
-   cd /home/ec2-user
-   git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
-   cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
-   ```
+#### 1) `roboshop-mongodb`
 
-5. Run the matching configuration script with Bash and sudo. For example:
+Create `roboshop-mongodb` and add these inbound rules:
 
-   ```bash
-   sudo bash 01-mongodb.sh
-   ```
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 27017 | TCP | `roboshop-catalogue` | Catalogue reads products and loads master data |
+| 27017 | TCP | `roboshop-user` | User reads/writes user accounts and orders |
 
-   These scripts use Bash syntax; invoke them with `bash`, not `sh`.
-6. Check the service log for errors and verify the service health using its
-   documentation before provisioning the next dependent component:
+From Windows Git Bash, create the instance:
 
-   ```bash
-   sudo tail -n 60 /var/log/roboshop/01-mongodb.sh.log
-   sudo tail -f /var/log/roboshop/01-mongodb.sh.log
-   ```
+```bash
+sh roboshop-v1.sh mongodb
+```
 
-   The first command shows recent output. The `-f` command follows new log
-   entries and can be stopped with `Ctrl+C`. Log filenames are based on the
-   component script name.
+SSH to the instance:
 
-Follow this sequence through Frontend:
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
 
-| Order | Instance argument | Security group | Run on the instance | Log file |
-|---:|---|---|---|---|
-| 1 | `mongodb` | `roboshop-mongodb` | `sudo bash 01-mongodb.sh` | `/var/log/roboshop/01-mongodb.sh.log` |
-| 2 | `redis` | `roboshop-redis` | `sudo bash 02-redis.sh` | `/var/log/roboshop/02-redis.sh.log` |
-| 3 | `mysql` | `roboshop-mysql` | `sudo bash 03-mysql.sh` | `/var/log/roboshop/03-mysql.sh.log` |
-| 4 | `rabbitmq` | `roboshop-rabbitmq` | `sudo bash 04-rabbitmq.sh` | `/var/log/roboshop/04-rabbitmq.sh.log` |
-| 5 | `catalogue` | `roboshop-catalogue` | `sudo bash 05-catalogue.sh` | `/var/log/roboshop/05-catalogue.sh.log` |
-| 6 | `user` | `roboshop-user` | `sudo bash 06-user.sh` | `/var/log/roboshop/06-user.sh.log` |
-| 7 | `cart` | `roboshop-cart` | `sudo bash 07-cart.sh` | `/var/log/roboshop/07-cart.sh.log` |
-| 8 | `shipping` | `roboshop-shipping` | `sudo bash 08-shipping.sh` | `/var/log/roboshop/08-shipping.sh.log` |
-| 9 | `payment` | `roboshop-payment` | `sudo bash 09-payment.sh` | `/var/log/roboshop/09-payment.sh.log` |
-| 10 | `frontend` | `roboshop-frontend` | `sudo bash 10-frontend.sh` | `/var/log/roboshop/10-frontend.sh.log` |
+On the MongoDB instance, clone the project and run its setup script:
 
-The reference documentation also defines `roboshop-dispatch`, but this V1
-repository does not include a Dispatch setup script. Dispatch is therefore
-not part of the deployment sequence above; the RabbitMQ rule for
-`roboshop-dispatch` is needed only if you deploy that service separately.
-Follow the [RoboShop documentation](../01.roboshop-documentation/readme.md) for
-each service's dependencies, health checks, and detailed security-group
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 01-mongodb.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/01-mongodb.sh.log
+```
+
+#### 2) `roboshop-redis`
+
+Create `roboshop-redis` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 6379 | TCP | `roboshop-user` | User guest ID counter |
+| 6379 | TCP | `roboshop-cart` | Stores the carts |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh redis
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Redis instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 02-redis.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/02-redis.sh.log
+```
+
+#### 3) `roboshop-mysql`
+
+Create `roboshop-mysql` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 3306 | TCP | `roboshop-shipping` | Shipping reads city/distance data and loads master data |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh mysql
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the MySQL instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 03-mysql.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/03-mysql.sh.log
+```
+
+#### 4) `roboshop-rabbitmq`
+
+Create `roboshop-rabbitmq` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 5672 | TCP | `roboshop-payment` | Payment publishes orders |
+| 5672 | TCP | `roboshop-dispatch` | Dispatch consumes orders; only needed if Dispatch is deployed |
+| 15672 | TCP | `MY-IP/32` | Optional RabbitMQ management UI |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh rabbitmq
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the RabbitMQ instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 04-rabbitmq.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/04-rabbitmq.sh.log
+```
+
+#### 5) `roboshop-catalogue`
+
+Create `roboshop-catalogue` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-cart` | Cart checks product price and stock |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh catalogue
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Catalogue instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 05-catalogue.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/05-catalogue.sh.log
+```
+
+#### 6) `roboshop-user`
+
+Create `roboshop-user` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-payment` | Payment checks users and saves orders |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh user
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the User instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 06-user.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/06-user.sh.log
+```
+
+#### 7) `roboshop-cart`
+
+Create `roboshop-cart` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+| 8080 | TCP | `roboshop-shipping` | Shipping adds shipping cost to the cart |
+| 8080 | TCP | `roboshop-payment` | Payment empties the cart after an order |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh cart
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Cart instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 07-cart.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/07-cart.sh.log
+```
+
+#### 8) `roboshop-shipping`
+
+Create `roboshop-shipping` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh shipping
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Shipping instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 08-shipping.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/08-shipping.sh.log
+```
+
+#### 9) `roboshop-payment`
+
+Create `roboshop-payment` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 8080 | TCP | `roboshop-frontend` | Frontend reverse proxy |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh payment
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Payment instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 09-payment.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/09-payment.sh.log
+```
+
+#### 10) `roboshop-frontend`
+
+Create `roboshop-frontend` and add these inbound rules:
+
+| Port | Protocol | Source | Description |
+|---:|---|---|---|
+| 22 | TCP | `0.0.0.0/0` | SSH access (temporary lab use; see warning above) |
+| 80 | TCP | `0.0.0.0/0` | HTTP access to the website |
+
+From Windows Git Bash, create the instance:
+
+```bash
+sh roboshop-v1.sh frontend
+```
+
+SSH to the instance:
+
+```bash
+ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+```
+
+On the Frontend instance, clone the project and run its setup script:
+
+```bash
+cd /home/ec2-user
+git clone https://github.com/Saikiran-Panuganti/devops-real-world-projects.git
+cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-provisioning-v1
+sudo bash 10-frontend.sh
+```
+
+Check the setup log:
+
+```bash
+sudo tail -f /var/log/roboshop/10-frontend.sh.log
+```
+
+The component setup scripts use Bash syntax, so run them with `bash` as shown
+above. `tail -f` follows new log entries; press `Ctrl+C` to stop following.
+Check the corresponding component documentation for service health checks
+before moving to the next service. This V1 repository does not include a
+Dispatch setup script; the RabbitMQ rule for `roboshop-dispatch` is only needed
+if you deploy Dispatch separately.
+
+See the [RoboShop documentation](../01.roboshop-documentation/readme.md) for
+the full architecture, dependencies, health checks, and security-group
 guidance.
 
 
