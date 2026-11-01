@@ -32,28 +32,16 @@ aws --version
 
 ### 2. Create credentials for the lab
 
-In the AWS Management Console, create an IAM identity for CLI access and
-generate an access key intended for **Command Line Interface (CLI)** use. For
-a basic learning setup:
-
-1. Open **IAM → Users → Create user** and create a dedicated user for this lab.
-2. Grant the user the permissions described below. Do not use root-account
-   access keys.
+1. In the AWS Console, go to **IAM → Users** and create a user for this project.
+2. Give it the AWS permissions needed to create EC2 instances, security groups,
+   and Route 53 records.
 3. Open the user's **Security credentials** tab, choose **Create access key**,
-   select the CLI use case, and follow the prompts to create the key.
+   and select **Command Line Interface (CLI)**.
+4. Save the access key ID and secret access key for the next step. AWS shows
+   the secret only once.
 
-For a disposable learning account, the project may require permissions for
-EC2, security groups, and Route 53. Attaching the AWS managed
-`AdministratorAccess` policy grants broad access to the account; use it only
-if you understand and accept that risk, preferably in a separate lab account.
-For ongoing or production use, create a policy limited to the specific actions
-and resources the project needs. AWS recommends temporary credentials and
-least-privilege permissions where possible.
-
-Copy the access key ID and secret access key when AWS displays them. The secret
-is shown only once. Never paste either key into a script, README, source
-control, screenshot, or chat. If a key is exposed, deactivate and replace it
-immediately.
+Do not use root-account keys or share your access keys. `AdministratorAccess`
+grants broad access; use it only in a disposable learning account.
 
 ### 3. Configure the AWS CLI
 
@@ -128,11 +116,14 @@ Set your domain name in each of the following scripts before using them:
 - In `roboshop-v1.sh`, set the AMI, instance type, domain, and hosted-zone ID:
 
 ```bash
-ami_id="<AMI-ID>"
+ami_id="ami-0055977a6e828a4f4"
 instance_type="t3.micro"
 domain_name="example.com"
 hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>"
 ```
+
+This practice AMI is available in `us-east-1`. If you choose a different AMI,
+its login method and credentials may be different.
 
 - In `08-shipping.sh` and `10-frontend.sh`, replace the placeholder
   `domain_name` value with the same domain:
@@ -143,71 +134,20 @@ hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>"
 
 ### 7. Create service security groups and deploy the instances
 
-Create a separate security group for **each** service in **EC2 → Security
-Groups → Create security group**. This workflow does not use a shared
-`roboshop-common` group and does not create security groups through a script.
-Create the groups in the same region and VPC as the instances. Add the inbound
-rules shown under each service below. For an internal source, select the
-referenced security group as the rule's source; do not enter its name as a
-CIDR block.
+For each service, create its security group in the EC2 console using the rules
+below, then run the instance command from Windows Git Bash. SSH to the instance
+as `ec2-user`, clone the repository, run its setup script, and check its log.
+Create each group in the instance's region and VPC. The launch script must
+attach the matching group. SSH from `0.0.0.0/0` is convenient for a temporary
+lab but exposes port 22 publicly; restrict it to your IP when possible.
 
-Create all ten service security groups before adding rules that reference
-another service's group. This ensures that every source group can be selected
-when configuring the rules. The examples below allow SSH from `0.0.0.0/0`,
-meaning any IPv4 address on the internet can attempt to connect. This is less
-secure than restricting SSH to your current public IP with a `/32` rule. Use
-`0.0.0.0/0` only for a temporary lab and change it to your trusted IP when
-possible. Do not expose backend or database ports to `0.0.0.0/0`. Keep
-outbound rules that allow the instances to download packages and communicate
-with their dependencies.
-
-For each service, follow its section in order:
-
-1. Create/configure the service's security group and attach it to the instance
-   by running `sh roboshop-v1.sh <service-id>` in Git Bash.
-2. Wait for the instance to pass its EC2 status checks, then SSH as
-   `ec2-user` using the key pair supplied when launching it.
-3. Clone the project on that instance, run the matching configuration script,
-   and check its log.
-
-Replace `<your-windows-user>`, `<key-file>`, and `<instance-public-ip>` in the
-SSH command with your actual Windows username, key filename, and instance
-public IPv4 address. The private key remains on your Windows machine; never
-copy it into the repository or onto the instance.
-
-Before running the service commands, update `roboshop-v1.sh` so it selects the
-manually created security group by name and VPC, attaches its ID, and specifies
-the EC2 key pair used by the SSH commands below. Add these settings with the
-other variables near the top:
-
-```bash
-vpc_id="<YOUR-VPC-ID>"
-key_name="<YOUR-EC2-KEY-PAIR-NAME>"
-```
-
-Then, inside the `for` loop and before `aws ec2 run-instances`, look up the
-service group's ID:
-
-```bash
-security_group_id=$(aws ec2 describe-security-groups \
-    --filters "Name=group-name,Values=roboshop-$instance" "Name=vpc-id,Values=$vpc_id" \
-    --query 'SecurityGroups[0].GroupId' \
-    --output text)
-```
-
-In the `run-instances` command, use these options:
-
-```bash
---key-name "$key_name" \
---security-group-ids "$security_group_id" \
-```
-
-This way, `sh roboshop-v1.sh mongodb` attaches the ID of
-`roboshop-mongodb`, while the other arguments select their corresponding
-service groups. The group must already exist in the configured region and VPC.
-The key pair must already exist in that AWS region, and its private key must
-be available on your Windows computer. Do not use `--security-groups` with a
-group name for a VPC launch.
+The `Redhat-9-DevOps-Practice` AMI (`ami-0055977a6e828a4f4`) is configured for
+password login. For every service below, SSH as `ec2-user` and enter password
+`DevOps321` when prompted. The provisioning script does not create or require
+a PEM file for this AMI's password-based SSH login. This is a shared lab
+password, not a secure production credential. Use this AMI only for a
+disposable learning environment, do not store sensitive data on these
+instances, and change or disable the password-based access when possible.
 
 #### 1) `roboshop-mongodb`
 
@@ -228,8 +168,11 @@ sh roboshop-v1.sh mongodb
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the MongoDB instance, clone the project and run its setup script:
 
@@ -265,8 +208,11 @@ sh roboshop-v1.sh redis
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Redis instance, clone the project and run its setup script:
 
@@ -301,8 +247,11 @@ sh roboshop-v1.sh mysql
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the MySQL instance, clone the project and run its setup script:
 
@@ -339,8 +288,11 @@ sh roboshop-v1.sh rabbitmq
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the RabbitMQ instance, clone the project and run its setup script:
 
@@ -376,8 +328,11 @@ sh roboshop-v1.sh catalogue
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Catalogue instance, clone the project and run its setup script:
 
@@ -413,8 +368,11 @@ sh roboshop-v1.sh user
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the User instance, clone the project and run its setup script:
 
@@ -451,8 +409,11 @@ sh roboshop-v1.sh cart
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Cart instance, clone the project and run its setup script:
 
@@ -487,8 +448,11 @@ sh roboshop-v1.sh shipping
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Shipping instance, clone the project and run its setup script:
 
@@ -523,8 +487,11 @@ sh roboshop-v1.sh payment
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Payment instance, clone the project and run its setup script:
 
@@ -559,8 +526,11 @@ sh roboshop-v1.sh frontend
 SSH to the instance:
 
 ```bash
-ssh -i /c/Users/<your-windows-user>/.ssh/<key-file>.pem ec2-user@<instance-public-ip>
+ssh ec2-user@<instance-public-ip>
 ```
+
+Login credentials: Username `ec2-user`; enter password `DevOps321` when
+prompted.
 
 On the Frontend instance, clone the project and run its setup script:
 

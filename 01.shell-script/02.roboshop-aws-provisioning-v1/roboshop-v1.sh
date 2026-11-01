@@ -1,11 +1,11 @@
 #!/bin/bash
-#For your reference, you can find the AMI ID and Hosted Zone ID in your AWS account. Replace <AMI-ID> and <ROUTE-53-HOSTED-ZONE-ID> with the actual values before running the script.
-#ami_id="ami-0055977a6e828a4f4"
+#For your reference, you can find the  Hosted Zone ID in your AWS account. Replace <AMI-ID> and <ROUTE-53-HOSTED-ZONE-ID> with the actual values before running the script.
 #instance_type="t3.micro"
 #domain_name="saikiranaws.store"
 #hosted_zone_id="Z05137096J70EBGPV01Y"
 
-ami_id="<AMI-ID>"       #Replace with your actual AMI ID
+ami_id="ami-0055977a6e828a4f4"   # use same AMI ID for all instances, for easy SSH access and consistency. This AMI ID is for Amazon Linux 2 in the us-east-1 region.
+# If you are using a different region, please update the AMI ID accordingly.
 instance_type="t3.micro"
 domain_name="example.com" #Replace with your actual domain name
 hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>" #Replace with your actual Route 53 Hosted Zone ID
