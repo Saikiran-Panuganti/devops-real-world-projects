@@ -134,20 +134,23 @@ its login method and credentials may be different.
 
 ### 7. Create service security groups and deploy the instances
 
-For each service, create its security group in the EC2 console using the rules
-below, then run the instance command from Windows Git Bash. SSH to the instance
-as `ec2-user`, clone the repository, run its setup script, and check its log.
-Create each group in the instance's region and VPC. The launch script must
-attach the matching group. SSH from `0.0.0.0/0` is convenient for a temporary
-lab but exposes port 22 publicly; restrict it to your IP when possible.
+For each service:
 
-The `Redhat-9-DevOps-Practice` AMI (`ami-0055977a6e828a4f4`) is configured for
-password login. For every service below, SSH as `ec2-user` and enter password
-`DevOps321` when prompted. The provisioning script does not create or require
-a PEM file for this AMI's password-based SSH login. This is a shared lab
-password, not a secure production credential. Use this AMI only for a
-disposable learning environment, do not store sensitive data on these
-instances, and change or disable the password-based access when possible.
+1. Create its security group in the EC2 console, using the inbound rules below.
+   Create it in the same region and VPC as the instance.
+2. From Windows Git Bash, run `sh roboshop-v1.sh <service-id>`.
+3. In **EC2 → Instances**, confirm the instance appears with name
+   `roboshop-<service-id>` and reaches **Running**.
+4. In **Route 53 → Hosted zones → your domain → Records**, confirm the
+   `<service-id>.<your-domain>` A record exists. For example, with
+   `saikiranaws.store`, MongoDB should be `mongodb.saikiranaws.store`.
+5. SSH as `ec2-user`, clone this repository, run the matching setup script,
+   and check its log as shown in that service's section.
+
+The practice AMI (`ami-0055977a6e828a4f4`) uses username `ec2-user` and
+password `DevOps321`; no PEM file is used in these login steps. This shared
+password is for a learning lab only. SSH from `0.0.0.0/0` exposes port 22 to
+the internet, so restrict it to your IP when possible.
 
 #### 1) `roboshop-mongodb`
 
@@ -164,6 +167,9 @@ From Windows Git Bash, create the instance:
 ```bash
 sh roboshop-v1.sh mongodb
 ```
+
+Check that EC2 shows `roboshop-mongodb` as **Running** and that Route 53 has
+`mongodb.<your-domain>` (for example, `mongodb.saikiranaws.store`).
 
 SSH to the instance:
 
@@ -183,7 +189,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 01-mongodb.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/01-mongodb.sh.log
@@ -205,6 +211,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh redis
 ```
 
+Check that EC2 shows `roboshop-redis` as **Running** and that Route 53 has
+`redis.<your-domain>` (for example, `redis.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -223,7 +232,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 02-redis.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/02-redis.sh.log
@@ -244,6 +253,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh mysql
 ```
 
+Check that EC2 shows `roboshop-mysql` as **Running** and that Route 53 has
+`mysql.<your-domain>` (for example, `mysql.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -262,7 +274,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 03-mysql.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/03-mysql.sh.log
@@ -285,6 +297,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh rabbitmq
 ```
 
+Check that EC2 shows `roboshop-rabbitmq` as **Running** and that Route 53 has
+`rabbitmq.<your-domain>` (for example, `rabbitmq.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -303,7 +318,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 04-rabbitmq.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/04-rabbitmq.sh.log
@@ -325,6 +340,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh catalogue
 ```
 
+Check that EC2 shows `roboshop-catalogue` as **Running** and that Route 53 has
+`catalogue.<your-domain>` (for example, `catalogue.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -343,7 +361,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 05-catalogue.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/05-catalogue.sh.log
@@ -365,6 +383,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh user
 ```
 
+Check that EC2 shows `roboshop-user` as **Running** and that Route 53 has
+`user.<your-domain>` (for example, `user.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -383,7 +404,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 06-user.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/06-user.sh.log
@@ -406,6 +427,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh cart
 ```
 
+Check that EC2 shows `roboshop-cart` as **Running** and that Route 53 has
+`cart.<your-domain>` (for example, `cart.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -424,7 +448,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 07-cart.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/07-cart.sh.log
@@ -445,6 +469,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh shipping
 ```
 
+Check that EC2 shows `roboshop-shipping` as **Running** and that Route 53 has
+`shipping.<your-domain>` (for example, `shipping.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -463,7 +490,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 08-shipping.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/08-shipping.sh.log
@@ -484,6 +511,9 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh payment
 ```
 
+Check that EC2 shows `roboshop-payment` as **Running** and that Route 53 has
+`payment.<your-domain>` (for example, `payment.saikiranaws.store`).
+
 SSH to the instance:
 
 ```bash
@@ -502,7 +532,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 09-payment.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/09-payment.sh.log
@@ -523,6 +553,10 @@ From Windows Git Bash, create the instance:
 sh roboshop-v1.sh frontend
 ```
 
+Check that EC2 shows `roboshop-frontend` as **Running** and that Route 53 has
+`frontend.<your-domain>` (for example, `frontend.saikiranaws.store`). Frontend
+uses the instance's public IP; backend records use private IPs.
+
 SSH to the instance:
 
 ```bash
@@ -541,7 +575,7 @@ cd /home/ec2-user/devops-real-world-projects/01.shell-script/02.roboshop-aws-pro
 sudo bash 10-frontend.sh
 ```
 
-Check the setup log:
+Check the log to confirm the service configured successfully or to find any errors:
 
 ```bash
 sudo tail -f /var/log/roboshop/10-frontend.sh.log
