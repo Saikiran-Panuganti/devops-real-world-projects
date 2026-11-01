@@ -7,10 +7,8 @@
 ami_id="ami-0055977a6e828a4f4"   # use same AMI ID for all instances, for easy SSH access and consistency. This AMI ID is for Amazon Linux 2 in the us-east-1 region.
 # If you are using a different region, please update the AMI ID accordingly.
 instance_type="t3.micro"
-domain_name="example.com" #Replace with your actual domain name
+domain_name="example.com"  #Replace with your actual domain name
 hosted_zone_id="<ROUTE-53-HOSTED-ZONE-ID>" #Replace with your actual Route 53 Hosted Zone ID
-
-
 
 for instance in $@
 do
